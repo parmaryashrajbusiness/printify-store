@@ -33,29 +33,35 @@ public class PrintifyService {
 
     public String createOrder(Order order) {
         Map<String, Object> payload = new HashMap<>();
+
         payload.put("external_id", order.getId());
         payload.put("label", "Store Order " + order.getId());
+        payload.put("shipping_method", 1);
         payload.put("send_shipping_notification", false);
 
-        Map<String, Object> recipient = new HashMap<>();
-        recipient.put("name", order.getShippingFullName());
-        recipient.put("email", order.getShippingEmail());
-        recipient.put("phone", order.getShippingPhone());
-        recipient.put("country", order.getShippingCountry());
-        recipient.put("region", order.getShippingState());
-        recipient.put("address1", order.getShippingAddressLine1());
-        recipient.put("address2", order.getShippingAddressLine2());
-        recipient.put("city", order.getShippingCity());
-        recipient.put("zip", order.getShippingPostalCode());
+        Map<String, Object> addressTo = new HashMap<>();
+        addressTo.put("first_name", getFirstName(order.getShippingFullName()));
+        addressTo.put("last_name", getLastName(order.getShippingFullName()));
+        addressTo.put("email", order.getShippingEmail());
+        addressTo.put("phone", order.getShippingPhone());
+        addressTo.put("country", order.getShippingCountry().toUpperCase());
+        addressTo.put("region", order.getShippingState());
+        addressTo.put("address1", order.getShippingAddressLine1());
+        addressTo.put("address2", safe(order.getShippingAddressLine2()));
+        addressTo.put("city", order.getShippingCity());
+        addressTo.put("zip", order.getShippingPostalCode());
 
-        payload.put("recipient", recipient);
+        payload.put("address_to", addressTo);
 
-        List<Map<String, Object>> lineItems = order.getItems().stream().map(this::mapItem).toList();
+        List<Map<String, Object>> lineItems =
+                order.getItems().stream().map(this::mapItem).toList();
+
         payload.put("line_items", lineItems);
 
         String response = webClient.post()
                 .uri(baseUrl + "/shops/" + shopId + "/orders.json")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.USER_AGENT, "NeonCart")
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(payload)
                 .retrieve()
@@ -66,7 +72,7 @@ public class PrintifyService {
             JsonNode json = objectMapper.readTree(response);
             return json.path("id").asText();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Printify response");
+            throw new RuntimeException("Failed to parse Printify response: " + response);
         }
     }
 
@@ -76,5 +82,21 @@ public class PrintifyService {
         map.put("variant_id", Integer.valueOf(item.getPrintifyVariantId()));
         map.put("quantity", item.getQuantity());
         return map;
+    }
+
+    private String getFirstName(String fullName) {
+        String name = safe(fullName).replaceAll("\\s+", " ").trim();
+        String[] parts = name.split(" ");
+        return parts[0];
+    }
+
+    private String getLastName(String fullName) {
+        String name = safe(fullName).replaceAll("\\s+", " ").trim();
+        String[] parts = name.split(" ", 2);
+        return parts.length > 1 ? parts[1] : parts[0];
+    }
+
+    private String safe(String value) {
+        return value == null ? "" : value.trim();
     }
 }

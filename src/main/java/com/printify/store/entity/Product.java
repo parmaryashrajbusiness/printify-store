@@ -35,4 +35,11 @@ public class Product extends BaseDocument {
     private String printifyVariantId;
     private String printifyBlueprintId;
     private String printifyProviderId;
+
+    private String categorySlug;
+    private String categoryName;
+    private String subCategorySlug;
+    private String subCategoryName;
+    private Double ratingAverage = 0.0;
+    private Integer ratingCount = 0;
 }

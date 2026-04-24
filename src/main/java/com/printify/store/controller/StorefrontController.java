@@ -32,10 +32,15 @@ public class StorefrontController {
     }
 
     @GetMapping("/products")
-    public List<Product> getProducts(@RequestParam(required = false) String section,
-                                     @RequestParam(required = false) String search,
-                                     @RequestParam(required = false) String sort) {
-        return productService.getProducts(section, search, sort);
+    public List<Product> getProducts(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String subCategory,
+            @RequestParam(required = false) String section,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String sort
+    ) {
+        String selectedCategory = category != null ? category : section;
+        return productService.getProducts(selectedCategory, subCategory, search, sort);
     }
 
     @GetMapping("/products/featured")

@@ -21,34 +21,52 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final SectionService sectionService;
 
-    public List<Product> getProducts(String section, String search, String sort) {
-        Stream<Product> stream = productRepository.findAll().stream();
+    public List<Product> getProducts(String category, String subCategory, String search, String sort) {
+        Stream<Product> stream = productRepository.findAll().stream()
+                .filter(p -> p.getStatus() == null || "ACTIVE".equalsIgnoreCase(p.getStatus()));
 
-        if (section != null && !section.isBlank()) {
-            stream = stream.filter(p -> section.equalsIgnoreCase(p.getSectionSlug()));
+        if (category != null && !category.isBlank() && !"all".equalsIgnoreCase(category)) {
+            stream = stream.filter(p ->
+                    category.equalsIgnoreCase(p.getCategorySlug()) ||
+                            category.equalsIgnoreCase(p.getSectionSlug())
+            );
+        }
+
+        if (subCategory != null && !subCategory.isBlank() && !"all".equalsIgnoreCase(subCategory)) {
+            stream = stream.filter(p -> subCategory.equalsIgnoreCase(p.getSubCategorySlug()));
         }
 
         if (search != null && !search.isBlank()) {
-            String q = search.toLowerCase(Locale.ROOT);
+            String q = search.toLowerCase();
             stream = stream.filter(p ->
-                    (p.getName() != null && p.getName().toLowerCase(Locale.ROOT).contains(q)) ||
-                            (p.getDescription() != null && p.getDescription().toLowerCase(Locale.ROOT).contains(q))
+                    contains(p.getName(), q) ||
+                            contains(p.getDescription(), q) ||
+                            contains(p.getCategoryName(), q) ||
+                            contains(p.getSubCategoryName(), q)
             );
         }
 
         List<Product> products = stream.toList();
 
         if ("lowToHigh".equalsIgnoreCase(sort)) {
-            products = products.stream().sorted(Comparator.comparing(Product::getPrice)).toList();
-        } else if ("highToLow".equalsIgnoreCase(sort)) {
-            products = products.stream().sorted(Comparator.comparing(Product::getPrice).reversed()).toList();
-        } else if ("rating".equalsIgnoreCase(sort)) {
-            products = products.stream().sorted(Comparator.comparing(Product::getRating, Comparator.nullsLast(Double::compareTo)).reversed()).toList();
-        } else {
-            products = products.stream().sorted(Comparator.comparing(Product::isFeatured).reversed()).toList();
+            return products.stream().sorted(Comparator.comparing(Product::getPrice)).toList();
         }
 
-        return products;
+        if ("highToLow".equalsIgnoreCase(sort)) {
+            return products.stream().sorted(Comparator.comparing(Product::getPrice).reversed()).toList();
+        }
+
+        if ("rating".equalsIgnoreCase(sort)) {
+            return products.stream()
+                    .sorted(Comparator.comparing(Product::getRatingAverage, Comparator.nullsLast(Double::compareTo)).reversed())
+                    .toList();
+        }
+
+        return products.stream().sorted(Comparator.comparing(Product::isFeatured).reversed()).toList();
+    }
+
+    private boolean contains(String value, String q) {
+        return value != null && value.toLowerCase().contains(q);
     }
 
     public List<Product> getFeaturedProducts() {
