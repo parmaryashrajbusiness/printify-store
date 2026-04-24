@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 public class ProductRequest {
@@ -34,4 +35,18 @@ public class ProductRequest {
     private String printifyVariantId;
     private String printifyBlueprintId;
     private String printifyProviderId;
+
+    private String longDescription;
+    private List<String> images;
+
+    private String categorySlug;
+    private String categoryName;
+
+    private String subCategorySlug;
+    private String subCategoryName;
+
+    private String material;
+    private String fit;
+    private String productType;
+    private String printType;
 }

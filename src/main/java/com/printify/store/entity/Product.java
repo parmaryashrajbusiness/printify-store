@@ -4,6 +4,8 @@ import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -12,18 +14,26 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Document(collection = "products")
 public class Product extends BaseDocument {
+
     private String name;
     private String slug;
     private String description;
+    private String longDescription;
+
     private String imageUrl;
+
+    @Builder.Default
+    private List<String> images = new ArrayList<>();
+
     private String badge;
     private String colorway;
 
     private BigDecimal price;
     private BigDecimal compareAtPrice;
 
-    private Double rating;
-    private Integer reviewCount;
+    private Double ratingAverage;
+    private Integer ratingCount;
+
     private boolean featured;
     private String status;
 
@@ -31,15 +41,19 @@ public class Product extends BaseDocument {
     private String sectionSlug;
     private String sectionName;
 
+    private String categorySlug;
+    private String categoryName;
+
+    private String subCategorySlug;
+    private String subCategoryName;
+
+    private String material;
+    private String fit;
+    private String productType;
+    private String printType;
+
     private String printifyProductId;
     private String printifyVariantId;
     private String printifyBlueprintId;
     private String printifyProviderId;
-
-    private String categorySlug;
-    private String categoryName;
-    private String subCategorySlug;
-    private String subCategoryName;
-    private Double ratingAverage = 0.0;
-    private Integer ratingCount = 0;
 }

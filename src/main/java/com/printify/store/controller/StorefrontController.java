@@ -52,4 +52,9 @@ public class StorefrontController {
     public Product getProductBySlug(@PathVariable String slug) {
         return productService.getBySlug(slug);
     }
+
+    @GetMapping("/products/{productId}/similar")
+    public List<Product> getSimilarProducts(@PathVariable String productId) {
+        return productService.getSimilarProducts(productId);
+    }
 }

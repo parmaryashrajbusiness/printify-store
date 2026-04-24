@@ -27,8 +27,8 @@ public class ProductService {
 
         if (category != null && !category.isBlank() && !"all".equalsIgnoreCase(category)) {
             stream = stream.filter(p ->
-                    category.equalsIgnoreCase(p.getCategorySlug()) ||
-                            category.equalsIgnoreCase(p.getSectionSlug())
+                    category.equalsIgnoreCase(p.getSectionSlug()) ||
+                            category.equalsIgnoreCase(p.getCategorySlug())
             );
         }
 
@@ -37,7 +37,8 @@ public class ProductService {
         }
 
         if (search != null && !search.isBlank()) {
-            String q = search.toLowerCase();
+            String q = search.toLowerCase(Locale.ROOT);
+
             stream = stream.filter(p ->
                     contains(p.getName(), q) ||
                             contains(p.getDescription(), q) ||
@@ -49,24 +50,33 @@ public class ProductService {
         List<Product> products = stream.toList();
 
         if ("lowToHigh".equalsIgnoreCase(sort)) {
-            return products.stream().sorted(Comparator.comparing(Product::getPrice)).toList();
+            return products.stream()
+                    .sorted(Comparator.comparing(Product::getPrice))
+                    .toList();
         }
 
         if ("highToLow".equalsIgnoreCase(sort)) {
-            return products.stream().sorted(Comparator.comparing(Product::getPrice).reversed()).toList();
+            return products.stream()
+                    .sorted(Comparator.comparing(Product::getPrice).reversed())
+                    .toList();
         }
 
         if ("rating".equalsIgnoreCase(sort)) {
             return products.stream()
-                    .sorted(Comparator.comparing(Product::getRatingAverage, Comparator.nullsLast(Double::compareTo)).reversed())
+                    .sorted(Comparator.comparing(
+                            Product::getRatingAverage,
+                            Comparator.nullsLast(Double::compareTo)
+                    ).reversed())
                     .toList();
         }
 
-        return products.stream().sorted(Comparator.comparing(Product::isFeatured).reversed()).toList();
+        return products.stream()
+                .sorted(Comparator.comparing(Product::isFeatured).reversed())
+                .toList();
     }
 
     private boolean contains(String value, String q) {
-        return value != null && value.toLowerCase().contains(q);
+        return value != null && value.toLowerCase(Locale.ROOT).contains(q);
     }
 
     public List<Product> getFeaturedProducts() {
@@ -99,8 +109,6 @@ public class ProductService {
                 .colorway(request.getColorway())
                 .price(request.getPrice())
                 .compareAtPrice(request.getCompareAtPrice())
-                .rating(request.getRating())
-                .reviewCount(request.getReviewCount())
                 .featured(request.isFeatured())
                 .status(request.getStatus())
                 .sectionId(section.getId())
@@ -110,6 +118,18 @@ public class ProductService {
                 .printifyVariantId(request.getPrintifyVariantId())
                 .printifyBlueprintId(request.getPrintifyBlueprintId())
                 .printifyProviderId(request.getPrintifyProviderId())
+                .longDescription(request.getLongDescription())
+                .images(request.getImages() == null ? List.of() : request.getImages())
+                .ratingAverage(0.0)
+                .ratingCount(0)
+                .categorySlug(request.getCategorySlug())
+                .categoryName(request.getCategoryName())
+                .subCategorySlug(request.getSubCategorySlug())
+                .subCategoryName(request.getSubCategoryName())
+                .material(request.getMaterial())
+                .fit(request.getFit())
+                .productType(request.getProductType())
+                .printType(request.getPrintType())
                 .build();
 
         return productRepository.save(product);
@@ -127,8 +147,6 @@ public class ProductService {
         product.setColorway(request.getColorway());
         product.setPrice(request.getPrice());
         product.setCompareAtPrice(request.getCompareAtPrice());
-        product.setRating(request.getRating());
-        product.setReviewCount(request.getReviewCount());
         product.setFeatured(request.isFeatured());
         product.setStatus(request.getStatus());
         product.setSectionId(section.getId());
@@ -138,11 +156,44 @@ public class ProductService {
         product.setPrintifyVariantId(request.getPrintifyVariantId());
         product.setPrintifyBlueprintId(request.getPrintifyBlueprintId());
         product.setPrintifyProviderId(request.getPrintifyProviderId());
+        product.setLongDescription(request.getLongDescription());
+        product.setImages(request.getImages() == null ? List.of() : request.getImages());
+
+        product.setCategorySlug(request.getCategorySlug());
+        product.setCategoryName(request.getCategoryName());
+
+        product.setSubCategorySlug(request.getSubCategorySlug());
+        product.setSubCategoryName(request.getSubCategoryName());
+
+        product.setMaterial(request.getMaterial());
+        product.setFit(request.getFit());
+        product.setProductType(request.getProductType());
+        product.setPrintType(request.getPrintType());
 
         return productRepository.save(product);
     }
 
     public void delete(String id) {
         productRepository.deleteById(id);
+    }
+
+    public List<Product> getSimilarProducts(String productId) {
+        Product product = getById(productId);
+
+        return productRepository.findAll().stream()
+                .filter(p -> !p.getId().equals(product.getId()))
+                .filter(p -> p.getStatus() == null || "ACTIVE".equalsIgnoreCase(p.getStatus()))
+                .filter(p ->
+                        same(p.getSubCategorySlug(), product.getSubCategorySlug()) ||
+                                same(p.getCategorySlug(), product.getCategorySlug()) ||
+                                same(p.getSectionSlug(), product.getSectionSlug())
+                )
+                .sorted(Comparator.comparing(Product::isFeatured).reversed())
+                .limit(8)
+                .toList();
+    }
+
+    private boolean same(String a, String b) {
+        return a != null && b != null && a.equalsIgnoreCase(b);
     }
 }
