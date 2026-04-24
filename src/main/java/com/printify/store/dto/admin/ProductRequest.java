@@ -1,43 +1,34 @@
 package com.printify.store.dto.admin;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.Data;
+import com.printify.store.entity.ProductVariant;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 public class ProductRequest {
-    @NotBlank
-    private String name;
 
-    @NotBlank
+    private String name;
     private String description;
+    private String longDescription;
 
     private String imageUrl;
+    private List<String> imageUrls;
+
     private String badge;
     private String colorway;
 
-    @NotNull
     private BigDecimal price;
-
     private BigDecimal compareAtPrice;
-    private Double rating;
-    private Integer reviewCount;
+    private String currency;
+
     private boolean featured;
     private String status;
 
-    @NotBlank
     private String sectionId;
-
-    private String printifyProductId;
-    private String printifyVariantId;
-    private String printifyBlueprintId;
-    private String printifyProviderId;
-
-    private String longDescription;
-    private List<String> images;
 
     private String categorySlug;
     private String categoryName;
@@ -49,4 +40,11 @@ public class ProductRequest {
     private String fit;
     private String productType;
     private String printType;
+
+    private String printifyProductId;
+    private String printifyBlueprintId;
+    private String printifyProviderId;
+
+    private List<ProductVariant> variants;
+    private String defaultVariantId;
 }

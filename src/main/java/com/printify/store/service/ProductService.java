@@ -9,6 +9,7 @@ import com.printify.store.util.SlugUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -42,8 +43,11 @@ public class ProductService {
             stream = stream.filter(p ->
                     contains(p.getName(), q) ||
                             contains(p.getDescription(), q) ||
+                            contains(p.getLongDescription(), q) ||
                             contains(p.getCategoryName(), q) ||
-                            contains(p.getSubCategoryName(), q)
+                            contains(p.getSubCategoryName(), q) ||
+                            contains(p.getBadge(), q) ||
+                            contains(p.getColorway(), q)
             );
         }
 
@@ -51,13 +55,19 @@ public class ProductService {
 
         if ("lowToHigh".equalsIgnoreCase(sort)) {
             return products.stream()
-                    .sorted(Comparator.comparing(Product::getPrice))
+                    .sorted(Comparator.comparing(
+                            Product::getPrice,
+                            Comparator.nullsLast(BigDecimal::compareTo)
+                    ))
                     .toList();
         }
 
         if ("highToLow".equalsIgnoreCase(sort)) {
             return products.stream()
-                    .sorted(Comparator.comparing(Product::getPrice).reversed())
+                    .sorted(Comparator.comparing(
+                            Product::getPrice,
+                            Comparator.nullsLast(BigDecimal::compareTo)
+                    ).reversed())
                     .toList();
         }
 
@@ -75,12 +85,13 @@ public class ProductService {
                 .toList();
     }
 
-    private boolean contains(String value, String q) {
-        return value != null && value.toLowerCase(Locale.ROOT).contains(q);
-    }
-
     public List<Product> getFeaturedProducts() {
-        return productRepository.findAllByFeaturedTrue();
+        return productRepository.findAll().stream()
+                .filter(p -> p.getStatus() == null || "ACTIVE".equalsIgnoreCase(p.getStatus()))
+                .filter(Product::isFeatured)
+                .sorted(Comparator.comparing(Product::getRatingAverage, Comparator.nullsLast(Double::compareTo)).reversed())
+                .limit(8)
+                .toList();
     }
 
     public Product getBySlug(String slug) {
@@ -100,36 +111,60 @@ public class ProductService {
     public Product create(ProductRequest request) {
         ProductSection section = sectionService.getById(request.getSectionId());
 
+        List<String> imageUrls = request.getImageUrls() == null
+                ? List.of()
+                : request.getImageUrls();
+
+        String mainImage = request.getImageUrl();
+        if ((mainImage == null || mainImage.isBlank()) && !imageUrls.isEmpty()) {
+            mainImage = imageUrls.get(0);
+        }
+
         Product product = Product.builder()
                 .name(request.getName())
                 .slug(SlugUtil.toSlug(request.getName()))
                 .description(request.getDescription())
-                .imageUrl(request.getImageUrl())
+                .longDescription(request.getLongDescription())
+
+                .imageUrl(mainImage)
+                .imageUrls(imageUrls)
+
                 .badge(request.getBadge())
                 .colorway(request.getColorway())
+
                 .price(request.getPrice())
                 .compareAtPrice(request.getCompareAtPrice())
+                .currency(request.getCurrency())
+
                 .featured(request.isFeatured())
                 .status(request.getStatus())
+
                 .sectionId(section.getId())
                 .sectionSlug(section.getSlug())
                 .sectionName(section.getName())
-                .printifyProductId(request.getPrintifyProductId())
-                .printifyVariantId(request.getPrintifyVariantId())
-                .printifyBlueprintId(request.getPrintifyBlueprintId())
-                .printifyProviderId(request.getPrintifyProviderId())
-                .longDescription(request.getLongDescription())
-                .images(request.getImages() == null ? List.of() : request.getImages())
-                .ratingAverage(0.0)
-                .ratingCount(0)
+
                 .categorySlug(request.getCategorySlug())
                 .categoryName(request.getCategoryName())
                 .subCategorySlug(request.getSubCategorySlug())
                 .subCategoryName(request.getSubCategoryName())
+
                 .material(request.getMaterial())
                 .fit(request.getFit())
                 .productType(request.getProductType())
                 .printType(request.getPrintType())
+
+                .printifyProductId(request.getPrintifyProductId())
+                .printifyBlueprintId(request.getPrintifyBlueprintId())
+                .printifyProviderId(request.getPrintifyProviderId())
+
+                .variants(request.getVariants() == null ? List.of() : request.getVariants())
+                .defaultVariantId(request.getDefaultVariantId())
+
+                .ratingAverage(0.0)
+                .ratingCount(0)
+
+                .syncedFromPrintify(false)
+                .contentEditedLocally(true)
                 .build();
 
         return productRepository.save(product);
@@ -139,29 +174,39 @@ public class ProductService {
         Product product = getById(id);
         ProductSection section = sectionService.getById(request.getSectionId());
 
+        List<String> imageUrls = request.getImageUrls() == null
+                ? List.of()
+                : request.getImageUrls();
+
+        String mainImage = request.getImageUrl();
+        if ((mainImage == null || mainImage.isBlank()) && !imageUrls.isEmpty()) {
+            mainImage = imageUrls.get(0);
+        }
+
         product.setName(request.getName());
         product.setSlug(SlugUtil.toSlug(request.getName()));
         product.setDescription(request.getDescription());
-        product.setImageUrl(request.getImageUrl());
+        product.setLongDescription(request.getLongDescription());
+
+        product.setImageUrl(mainImage);
+        product.setImageUrls(imageUrls);
+
         product.setBadge(request.getBadge());
         product.setColorway(request.getColorway());
+
         product.setPrice(request.getPrice());
         product.setCompareAtPrice(request.getCompareAtPrice());
+        product.setCurrency(request.getCurrency());
+
         product.setFeatured(request.isFeatured());
         product.setStatus(request.getStatus());
+
         product.setSectionId(section.getId());
         product.setSectionSlug(section.getSlug());
         product.setSectionName(section.getName());
-        product.setPrintifyProductId(request.getPrintifyProductId());
-        product.setPrintifyVariantId(request.getPrintifyVariantId());
-        product.setPrintifyBlueprintId(request.getPrintifyBlueprintId());
-        product.setPrintifyProviderId(request.getPrintifyProviderId());
-        product.setLongDescription(request.getLongDescription());
-        product.setImages(request.getImages() == null ? List.of() : request.getImages());
 
         product.setCategorySlug(request.getCategorySlug());
         product.setCategoryName(request.getCategoryName());
-
         product.setSubCategorySlug(request.getSubCategorySlug());
         product.setSubCategoryName(request.getSubCategoryName());
 
@@ -169,6 +214,20 @@ public class ProductService {
         product.setFit(request.getFit());
         product.setProductType(request.getProductType());
         product.setPrintType(request.getPrintType());
+
+        product.setPrintifyProductId(request.getPrintifyProductId());
+        product.setPrintifyBlueprintId(request.getPrintifyBlueprintId());
+        product.setPrintifyProviderId(request.getPrintifyProviderId());
+
+        if (request.getVariants() != null) {
+            product.setVariants(request.getVariants());
+        }
+
+        if (request.getDefaultVariantId() != null && !request.getDefaultVariantId().isBlank()) {
+            product.setDefaultVariantId(request.getDefaultVariantId());
+        }
+
+        product.setContentEditedLocally(true);
 
         return productRepository.save(product);
     }
@@ -191,6 +250,10 @@ public class ProductService {
                 .sorted(Comparator.comparing(Product::isFeatured).reversed())
                 .limit(8)
                 .toList();
+    }
+
+    private boolean contains(String value, String q) {
+        return value != null && value.toLowerCase(Locale.ROOT).contains(q);
     }
 
     private boolean same(String a, String b) {

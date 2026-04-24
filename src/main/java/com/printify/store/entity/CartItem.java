@@ -20,4 +20,6 @@ public class CartItem extends BaseDocument {
     private String colorway;
     private BigDecimal unitPrice;
     private Integer quantity;
+    private String printifyVariantId;
+    private String variantTitle;
 }

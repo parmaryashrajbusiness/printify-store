@@ -36,21 +36,33 @@ public class OrderService {
             throw new BadRequestException("Cart is empty");
         }
 
-        List<OrderItem> items = cartItems.stream().map(cartItem -> {
-            Product product = productService.getById(cartItem.getProductId());
+        List<OrderItem> items = cartItems.stream()
+                .map(cartItem -> {
+                    Product product = productService.getById(cartItem.getProductId());
 
-            return OrderItem.builder()
-                    .productId(product.getId())
-                    .productName(product.getName())
-                    .productSlug(product.getSlug())
-                    .imageUrl(product.getImageUrl())
-                    .colorway(product.getColorway())
-                    .quantity(cartItem.getQuantity())
-                    .unitPrice(cartItem.getUnitPrice())
-                    .printifyProductId(product.getPrintifyProductId())
-                    .printifyVariantId(product.getPrintifyVariantId())
-                    .build();
-        }).toList();
+                    String printifyVariantId = cartItem.getPrintifyVariantId();
+
+                    if (printifyVariantId == null || printifyVariantId.isBlank()) {
+                        printifyVariantId = product.getDefaultVariantId();
+                    }
+
+                    if (printifyVariantId == null || printifyVariantId.isBlank()) {
+                        throw new BadRequestException("Product variant is missing for " + product.getName());
+                    }
+
+                    return OrderItem.builder()
+                            .productId(product.getId())
+                            .productName(product.getName())
+                            .productSlug(product.getSlug())
+                            .imageUrl(product.getImageUrl())
+                            .colorway(cartItem.getVariantTitle() != null ? cartItem.getVariantTitle() : product.getColorway())
+                            .quantity(cartItem.getQuantity())
+                            .unitPrice(cartItem.getUnitPrice())
+                            .printifyProductId(product.getPrintifyProductId())
+                            .printifyVariantId(printifyVariantId)
+                            .build();
+                })
+                .toList();
 
         BigDecimal total = items.stream()
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))

@@ -17,19 +17,26 @@ public class Product extends BaseDocument {
 
     private String name;
     private String slug;
+
     private String description;
     private String longDescription;
 
     private String imageUrl;
 
     @Builder.Default
-    private List<String> images = new ArrayList<>();
+    private List<String> imageUrls = new ArrayList<>();
 
     private String badge;
     private String colorway;
 
     private BigDecimal price;
     private BigDecimal compareAtPrice;
+    private String currency;
+
+    @Builder.Default
+    private List<ProductVariant> variants = new ArrayList<>();
+
+    private String defaultVariantId;
 
     private Double ratingAverage;
     private Integer ratingCount;
@@ -53,7 +60,11 @@ public class Product extends BaseDocument {
     private String printType;
 
     private String printifyProductId;
-    private String printifyVariantId;
     private String printifyBlueprintId;
     private String printifyProviderId;
+
+    private boolean syncedFromPrintify;
+    private boolean contentEditedLocally;
+
+    private String printifyStatus;
 }

@@ -10,4 +10,9 @@ public interface ProductRepository extends MongoRepository<Product, String> {
     Optional<Product> findBySlug(String slug);
     List<Product> findAllByFeaturedTrue();
     List<Product> findAllBySectionSlug(String sectionSlug);
+    Optional<Product> findByPrintifyProductId(String printifyProductId);
+
+    List<Product> findAllBySyncedFromPrintifyTrue();
+
+    List<Product> findAllByFeaturedTrueAndStatusIgnoreCase(String status);
 }
