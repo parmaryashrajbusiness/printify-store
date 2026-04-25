@@ -9,6 +9,8 @@ import com.printify.store.exception.ResourceNotFoundException;
 import com.printify.store.repository.CartItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.printify.store.entity.ProductVariant;
+import com.printify.store.exception.BadRequestException;
 
 import java.util.List;
 
@@ -26,7 +28,18 @@ public class CartService {
     public void addToCart(User user, AddToCartRequest request) {
         Product product = productService.getById(request.getProductId());
 
-        CartItem item = cartItemRepository.findByUserIdAndProductId(user.getId(), product.getId())
+        ProductVariant selectedVariant = product.getVariants().stream()
+                .filter(ProductVariant::isEnabled)
+                .filter(v -> request.getVariantId().equals(v.getPrintifyVariantId()))
+                .findFirst()
+                .orElseThrow(() -> new BadRequestException("Selected size/color is not available."));
+
+        CartItem item = cartItemRepository
+                .findByUserIdAndProductIdAndPrintifyVariantId(
+                        user.getId(),
+                        product.getId(),
+                        selectedVariant.getPrintifyVariantId()
+                )
                 .orElse(
                         CartItem.builder()
                                 .userId(user.getId())
@@ -34,13 +47,19 @@ public class CartService {
                                 .productName(product.getName())
                                 .productSlug(product.getSlug())
                                 .imageUrl(product.getImageUrl())
-                                .colorway(product.getColorway())
-                                .unitPrice(product.getPrice())
+                                .colorway(selectedVariant.getTitle())
+                                .unitPrice(selectedVariant.getPrice())
                                 .quantity(0)
+                                .printifyVariantId(selectedVariant.getPrintifyVariantId())
+                                .variantTitle(selectedVariant.getTitle())
                                 .build()
                 );
 
+        item.setUnitPrice(selectedVariant.getPrice());
+        item.setColorway(selectedVariant.getTitle());
+        item.setVariantTitle(selectedVariant.getTitle());
         item.setQuantity(item.getQuantity() + request.getQuantity());
+
         cartItemRepository.save(item);
     }
 

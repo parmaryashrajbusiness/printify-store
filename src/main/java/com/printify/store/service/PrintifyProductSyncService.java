@@ -14,6 +14,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.stream.Collectors;
+
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -134,31 +138,39 @@ public class PrintifyProductSyncService {
     private List<ProductVariant> extractVariants(JsonNode item) {
         List<ProductVariant> variants = new ArrayList<>();
 
-        Map<String, String> optionValueNames = extractOptionValueNames(item);
+        Map<String, Map<String, String>> optionValueNames = extractOptionValueNames(item);
 
         JsonNode variantsNode = item.path("variants");
         if (!variantsNode.isArray()) return variants;
 
         for (JsonNode variant : variantsNode) {
-            String title = text(variant, "title");
-
             String size = "";
             String color = "";
 
             JsonNode options = variant.path("options");
             if (options.isArray()) {
-                List<String> names = new ArrayList<>();
                 for (JsonNode optionId : options) {
-                    String name = optionValueNames.get(optionId.asText());
-                    if (name != null) names.add(name);
-                }
+                    Map<String, String> meta = optionValueNames.get(optionId.asText());
 
-                if (!names.isEmpty()) size = names.get(0);
-                if (names.size() > 1) color = names.get(1);
+                    if (meta == null) continue;
+
+                    String optionName = meta.get("optionName");
+                    String value = meta.get("value");
+
+                    if (optionName.contains("size")) {
+                        size = value;
+                    } else if (optionName.contains("color") || optionName.contains("colour")) {
+                        color = value;
+                    }
+                }
             }
 
+            String title = Stream.of(color, size)
+                    .filter(v -> v != null && !v.isBlank())
+                    .collect(Collectors.joining(" / "));
+
             if (title.isBlank()) {
-                title = String.join(" / ", List.of(size, color)).replaceAll(" / $", "");
+                title = text(variant, "title");
             }
 
             BigDecimal price = centsToMoney(variant.path("price").asLong(0));
@@ -177,21 +189,46 @@ public class PrintifyProductSyncService {
                     .build());
         }
 
+        variants.sort(Comparator.comparingInt(v -> sizeOrder(v.getSize())));
+
         return variants;
     }
 
-    private Map<String, String> extractOptionValueNames(JsonNode item) {
-        Map<String, String> map = new HashMap<>();
+    private int sizeOrder(String size) {
+        if (size == null) return 999;
+
+        return switch (size.toUpperCase()) {
+            case "XS" -> 0;
+            case "S" -> 1;
+            case "M" -> 2;
+            case "L" -> 3;
+            case "XL" -> 4;
+            case "2XL" -> 5;
+            case "3XL" -> 6;
+            case "4XL" -> 7;
+            case "5XL" -> 8;
+            default -> 999;
+        };
+    }
+
+    private Map<String, Map<String, String>> extractOptionValueNames(JsonNode item) {
+        Map<String, Map<String, String>> map = new HashMap<>();
 
         JsonNode options = item.path("options");
         if (!options.isArray()) return map;
 
         for (JsonNode option : options) {
+            String optionName = text(option, "name").toLowerCase(Locale.ROOT);
+
             JsonNode values = option.path("values");
             if (!values.isArray()) continue;
 
             for (JsonNode value : values) {
-                map.put(text(value, "id"), text(value, "title"));
+                Map<String, String> meta = new HashMap<>();
+                meta.put("optionName", optionName);
+                meta.put("value", text(value, "title"));
+
+                map.put(text(value, "id"), meta);
             }
         }
 

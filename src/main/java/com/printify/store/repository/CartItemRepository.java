@@ -10,4 +10,9 @@ public interface CartItemRepository extends MongoRepository<CartItem, String> {
     List<CartItem> findAllByUserIdOrderByCreatedAtDesc(String userId);
     Optional<CartItem> findByUserIdAndProductId(String userId, String productId);
     void deleteAllByUserId(String userId);
+    Optional<CartItem> findByUserIdAndProductIdAndPrintifyVariantId(
+            String userId,
+            String productId,
+            String printifyVariantId
+    );
 }

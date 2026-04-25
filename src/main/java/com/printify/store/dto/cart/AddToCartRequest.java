@@ -7,8 +7,12 @@ import lombok.Data;
 
 @Data
 public class AddToCartRequest {
+
     @NotBlank
     private String productId;
+
+    @NotBlank
+    private String variantId;
 
     @NotNull
     @Min(1)
