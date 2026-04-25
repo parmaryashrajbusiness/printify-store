@@ -19,4 +19,7 @@ public interface CartItemRepository extends MongoRepository<CartItem, String> {
     );
 
     void deleteAllByUserId(String userId);
+
+    List<CartItem> findByUserId(String userId);
+
 }

@@ -197,17 +197,28 @@ public class OrderService {
     public Order checkoutAfterOnlinePayment(
             User user,
             CheckoutRequest request,
-            String razorpayOrderId,
-            String razorpayPaymentId
+            String paymentMethod,
+            String paymentOrderId,
+            String paymentId,
+            String paidCurrency,
+            BigDecimal paidAmount
     ) {
         Order order = checkout(user, request);
 
-        order.setPaymentMethod("RAZORPAY");
+        order.setPaymentMethod(paymentMethod);
         order.setPaymentStatus("PAID");
-        order.setRazorpayOrderId(razorpayOrderId);
-        order.setRazorpayPaymentId(razorpayPaymentId);
-        order.setPaidCurrency("INR");
-        order.setPaidAmount(order.getTotalAmount());
+        order.setPaidCurrency(paidCurrency);
+        order.setPaidAmount(paidAmount != null ? paidAmount : order.getTotalAmount());
+
+        if ("RAZORPAY".equalsIgnoreCase(paymentMethod)) {
+            order.setRazorpayOrderId(paymentOrderId);
+            order.setRazorpayPaymentId(paymentId);
+        }
+
+        if ("PAYPAL".equalsIgnoreCase(paymentMethod)) {
+            order.setPaypalOrderId(paymentOrderId);
+            order.setPaypalCaptureId(paymentId);
+        }
 
         return orderRepository.save(order);
     }

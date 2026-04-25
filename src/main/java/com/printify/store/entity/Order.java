@@ -54,4 +54,7 @@ public class Order extends BaseDocument {
     private String paymentCurrency;
     private Integer paidAmountMinorUnit;
     private String checkoutQuoteId;
+
+    private String paypalOrderId;
+    private String paypalCaptureId;
 }
