@@ -1,6 +1,7 @@
 package com.printify.store.controller;
 
 import com.printify.store.dto.order.CheckoutRequest;
+import com.printify.store.dto.order.OrderTrackingResponse;
 import com.printify.store.entity.Order;
 import com.printify.store.entity.User;
 import com.printify.store.service.CurrentUserService;
@@ -24,6 +25,15 @@ public class OrderController {
     public List<Order> getOrders(Authentication authentication) {
         User user = currentUserService.getCurrentUser(authentication);
         return orderService.getOrders(user);
+    }
+
+    @GetMapping("/{orderId}/tracking")
+    public OrderTrackingResponse getTracking(
+            Authentication authentication,
+            @PathVariable String orderId
+    ) {
+        User user = currentUserService.getCurrentUser(authentication);
+        return orderService.getTracking(user, orderId);
     }
 
     @PostMapping("/checkout")
