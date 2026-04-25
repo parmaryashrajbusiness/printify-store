@@ -39,6 +39,7 @@ public class PaymentController {
         User user = currentUserService.getCurrentUser(authentication);
 
         razorpayPaymentService.verifyPayment(
+                user,
                 request.getRazorpayOrderId(),
                 request.getRazorpayPaymentId(),
                 request.getRazorpaySignature()
