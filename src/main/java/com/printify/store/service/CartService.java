@@ -77,8 +77,7 @@ public class CartService {
 
         BigDecimal originalPrice = pricingService.getOriginalUnitPrice(product, variant);
         String originalCurrency = pricingService.getOriginalCurrency(product, variant);
-        BigDecimal inrPrice = pricingService.toInr(originalPrice, originalCurrency);
-
+        BigDecimal inrPrice = pricingService.convert(originalPrice, originalCurrency, "INR");
         item.setProductName(product.getName());
         item.setProductSlug(product.getSlug());
         item.setImageUrl(product.getImageUrl());
@@ -143,7 +142,7 @@ public class CartService {
 
         BigDecimal originalPrice = pricingService.getOriginalUnitPrice(product, variant);
         String originalCurrency = pricingService.getOriginalCurrency(product, variant);
-        BigDecimal inrPrice = pricingService.toInr(originalPrice, originalCurrency);
+        BigDecimal inrPrice = pricingService.convert(originalPrice, originalCurrency, "INR");
 
         item.setOriginalUnitPrice(originalPrice);
         item.setOriginalCurrency(originalCurrency);

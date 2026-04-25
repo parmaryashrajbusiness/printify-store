@@ -47,6 +47,11 @@ public class Order extends BaseDocument {
     private String paymentStatus;
     private String razorpayOrderId;
     private String razorpayPaymentId;
-    private Integer paidAmount;
+    private BigDecimal paidAmount;
     private String paidCurrency;
+
+    private String paymentProvider;
+    private String paymentCurrency;
+    private Integer paidAmountMinorUnit;
+    private String checkoutQuoteId;
 }

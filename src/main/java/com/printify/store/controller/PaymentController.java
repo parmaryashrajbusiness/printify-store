@@ -3,6 +3,7 @@ package com.printify.store.controller;
 import com.printify.store.dto.payment.CreateRazorpayOrderRequest;
 import com.printify.store.dto.payment.CreateRazorpayOrderResponse;
 import com.printify.store.dto.payment.VerifyRazorpayPaymentRequest;
+import com.printify.store.entity.CheckoutQuote;
 import com.printify.store.entity.Order;
 import com.printify.store.entity.User;
 import com.printify.store.service.CurrentUserService;
@@ -28,7 +29,7 @@ public class PaymentController {
             @Valid @RequestBody CreateRazorpayOrderRequest request
     ) {
         User user = currentUserService.getCurrentUser(authentication);
-        return razorpayPaymentService.createOrder(user);
+        return razorpayPaymentService.createOrder(user, request.getCheckout());
     }
 
     @PostMapping("/verify")
@@ -38,18 +39,13 @@ public class PaymentController {
     ) {
         User user = currentUserService.getCurrentUser(authentication);
 
-        razorpayPaymentService.verifyPayment(
+        CheckoutQuote quote = razorpayPaymentService.verifyPayment(
                 user,
                 request.getRazorpayOrderId(),
                 request.getRazorpayPaymentId(),
                 request.getRazorpaySignature()
         );
 
-        return orderService.checkoutAfterOnlinePayment(
-                user,
-                request.getCheckout(),
-                request.getRazorpayOrderId(),
-                request.getRazorpayPaymentId()
-        );
+        return orderService.checkoutAfterVerifiedQuote(user, quote);
     }
 }

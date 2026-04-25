@@ -3,11 +3,7 @@ package com.printify.store.service;
 import com.printify.store.dto.order.CheckoutRequest;
 import com.printify.store.dto.order.OrderTrackingResponse;
 import com.printify.store.dto.printify.PrintifyOrderSnapshot;
-import com.printify.store.entity.CartItem;
-import com.printify.store.entity.Order;
-import com.printify.store.entity.OrderItem;
-import com.printify.store.entity.Product;
-import com.printify.store.entity.User;
+import com.printify.store.entity.*;
 import com.printify.store.exception.BadRequestException;
 import com.printify.store.exception.ResourceNotFoundException;
 import com.printify.store.repository.OrderRepository;
@@ -211,8 +207,66 @@ public class OrderService {
         order.setRazorpayOrderId(razorpayOrderId);
         order.setRazorpayPaymentId(razorpayPaymentId);
         order.setPaidCurrency("INR");
-        order.setPaidAmount(order.getTotalAmount().multiply(BigDecimal.valueOf(100)).intValue());
+        order.setPaidAmount(order.getTotalAmount());
 
         return orderRepository.save(order);
+    }
+
+    public Order checkoutAfterVerifiedQuote(User user, CheckoutQuote quote) {
+        if (!quote.getUserId().equals(user.getId())) {
+            throw new BadRequestException("Invalid payment quote");
+        }
+
+        if (!"PAID".equals(quote.getStatus())) {
+            throw new BadRequestException("Payment is not completed");
+        }
+
+        CheckoutRequest request;
+        try {
+            request = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readValue(quote.getCheckoutSnapshotJson(), CheckoutRequest.class);
+        } catch (Exception e) {
+            throw new BadRequestException("Invalid checkout snapshot");
+        }
+
+        shippingValidationService.validate(request);
+
+        Order order = Order.builder()
+                .userId(user.getId())
+                .status("PENDING")
+                .totalAmount(quote.getGrandTotal())
+                .shippingFullName(request.getFullName())
+                .shippingEmail(request.getEmail())
+                .shippingPhone(request.getPhone())
+                .shippingAddressLine1(request.getAddressLine1())
+                .shippingAddressLine2(request.getAddressLine2())
+                .shippingCity(request.getCity())
+                .shippingState(request.getState())
+                .shippingPostalCode(request.getPostalCode())
+                .shippingCountry(request.getCountry())
+                .items(quote.getItems())
+                .paymentProvider("RAZORPAY")
+                .paymentMethod("ONLINE")
+                .paymentStatus("PAID")
+                .paymentCurrency(quote.getPaymentCurrency())
+                .paidAmount(quote.getGrandTotal())
+                .paidAmountMinorUnit(quote.getAmountMinorUnit())
+                .razorpayOrderId(quote.getRazorpayOrderId())
+                .razorpayPaymentId(quote.getRazorpayPaymentId())
+                .checkoutQuoteId(quote.getId())
+                .build();
+
+        order = orderRepository.save(order);
+
+        PrintifyOrderSnapshot snapshot = printifyService.createOrder(order);
+
+        applyPrintifySnapshot(order, snapshot);
+        order.setStatus(toLocalStatus(snapshot.getStatus()));
+
+        order = orderRepository.save(order);
+
+        cartService.clearCart(user);
+
+        return order;
     }
 }
