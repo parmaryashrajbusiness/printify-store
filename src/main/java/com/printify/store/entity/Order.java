@@ -57,4 +57,10 @@ public class Order extends BaseDocument {
 
     private String paypalOrderId;
     private String paypalCaptureId;
+
+    private Boolean customerHidden;
+    private LocalDateTime customerHiddenAt;
+
+    private LocalDateTime cancelledByCustomerAt;
+    private String cancellationReason;
 }

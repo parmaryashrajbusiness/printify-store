@@ -1,21 +1,21 @@
 package com.printify.store.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.printify.store.config.PayPalProperties;
 import com.printify.store.dto.order.CheckoutRequest;
 import com.printify.store.dto.payment.PayPalCreateOrderResponse;
 import com.printify.store.entity.CartItem;
+import com.printify.store.entity.User;
 import com.printify.store.exception.BadRequestException;
 import com.printify.store.repository.CartItemRepository;
+import com.printify.store.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import com.printify.store.entity.User;
-import com.printify.store.repository.UserRepository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -34,19 +34,14 @@ public class PayPalPaymentService {
     private final UserRepository userRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
+    @Value("${app.currency.inr-to-usd-rate:83.00}")
+    private BigDecimal inrToUsdRate;
+
     public PayPalCreateOrderResponse createPayPalOrder(String userId, CheckoutRequest request) {
-
-        System.out.println("PAYPAL MODE = " + properties.getMode());
-        System.out.println("PAYPAL CLIENT ID EXISTS = " + (properties.getClientId() != null && !properties.getClientId().isBlank()));
-        System.out.println("PAYPAL SECRET EXISTS = " + (properties.getClientSecret() != null && !properties.getClientSecret().isBlank()));
-        System.out.println("USER ID = " + userId);
-
         User user = userRepository.findByEmail(userId)
                 .orElseThrow(() -> new BadRequestException("User not found."));
 
         List<CartItem> cartItems = cartItemRepository.findByUserId(user.getId());
-
-        System.out.println("CART ITEMS SIZE = " + (cartItems == null ? 0 : cartItems.size()));
 
         if (cartItems == null || cartItems.isEmpty()) {
             throw new BadRequestException("Cart is empty.");
@@ -56,13 +51,11 @@ public class PayPalPaymentService {
             throw new BadRequestException("PayPal is not available for Indian checkout. Please use Razorpay.");
         }
 
-        BigDecimal totalAmount = cartItems.stream()
-                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalInr = calculateCartTotalInr(cartItems);
+        BigDecimal totalUsd = convertInrToUsd(totalInr);
 
-        if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BadRequestException("Invalid cart total.");
+        if (totalUsd.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Invalid PayPal total.");
         }
 
         String token = getAccessToken();
@@ -75,7 +68,7 @@ public class PayPalPaymentService {
                 "purchase_units", List.of(Map.of(
                         "amount", Map.of(
                                 "currency_code", "USD",
-                                "value", totalAmount.toPlainString()
+                                "value", moneyValue(totalUsd)
                         ),
                         "description", "NeonCart order"
                 )),
@@ -88,13 +81,10 @@ public class PayPalPaymentService {
                 )
         );
 
-        HttpHeaders headers = bearerHeaders(token);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 properties.baseUrl() + "/v2/checkout/orders",
                 HttpMethod.POST,
-                entity,
+                new HttpEntity<>(body, bearerHeaders(token)),
                 JsonNode.class
         );
 
@@ -136,14 +126,18 @@ public class PayPalPaymentService {
         User user = userRepository.findByEmail(userId)
                 .orElseThrow(() -> new BadRequestException("User not found."));
 
-        String token = getAccessToken();
+        List<CartItem> cartItems = cartItemRepository.findByUserId(user.getId());
 
-        HttpEntity<Void> entity = new HttpEntity<>(bearerHeaders(token));
+        if (cartItems == null || cartItems.isEmpty()) {
+            throw new BadRequestException("Cart is empty.");
+        }
+
+        String token = getAccessToken();
 
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 properties.baseUrl() + "/v2/checkout/orders/" + paypalOrderId + "/capture",
                 HttpMethod.POST,
-                entity,
+                new HttpEntity<>(bearerHeaders(token)),
                 JsonNode.class
         );
 
@@ -166,16 +160,17 @@ public class PayPalPaymentService {
             throw new BadRequestException("PayPal capture id not found.");
         }
 
+        String paidCurrency = extractPaidCurrency(json);
         BigDecimal paidAmount = extractPaidAmount(json);
 
-        List<CartItem> cartItems = cartItemRepository.findByUserId(user.getId());
+        if (!"USD".equalsIgnoreCase(paidCurrency)) {
+            throw new BadRequestException("Invalid PayPal payment currency.");
+        }
 
-        BigDecimal expectedAmount = cartItems.stream()
-                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal expectedInr = calculateCartTotalInr(cartItems);
+        BigDecimal expectedUsd = convertInrToUsd(expectedInr);
 
-        if (paidAmount.compareTo(expectedAmount) != 0) {
+        if (paidAmount.compareTo(expectedUsd) != 0) {
             throw new BadRequestException("Payment amount mismatch.");
         }
 
@@ -188,6 +183,31 @@ public class PayPalPaymentService {
                 "USD",
                 paidAmount
         );
+    }
+
+    private BigDecimal calculateCartTotalInr(List<CartItem> cartItems) {
+        BigDecimal total = cartItems.stream()
+                .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Invalid cart total.");
+        }
+
+        return total;
+    }
+
+    private BigDecimal convertInrToUsd(BigDecimal inrAmount) {
+        if (inrToUsdRate == null || inrToUsdRate.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Invalid INR to USD conversion rate.");
+        }
+
+        return inrAmount.divide(inrToUsdRate, 2, RoundingMode.HALF_UP);
+    }
+
+    private String moneyValue(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
     }
 
     private BigDecimal extractPaidAmount(JsonNode json) {
@@ -212,17 +232,30 @@ public class PayPalPaymentService {
         }
     }
 
+    private String extractPaidCurrency(JsonNode json) {
+        String currency = json
+                .path("purchase_units")
+                .path(0)
+                .path("payments")
+                .path("captures")
+                .path(0)
+                .path("amount")
+                .path("currency_code")
+                .asText();
+
+        if (currency == null || currency.isBlank()) {
+            throw new BadRequestException("PayPal paid currency not found.");
+        }
+
+        return currency;
+    }
+
     private String getAccessToken() {
-
-        System.out.println("PAYPAL MODE = " + properties.getMode());
-        System.out.println("PAYPAL CLIENT ID EXISTS = " + (properties.getClientId() != null && !properties.getClientId().isBlank()));
-        System.out.println("PAYPAL SECRET EXISTS = " + (properties.getClientSecret() != null && !properties.getClientSecret().isBlank()));
-
         Assert.hasText(properties.getClientId(), "PAYPAL_CLIENT_ID is missing");
         Assert.hasText(properties.getClientSecret(), "PAYPAL_CLIENT_SECRET is missing");
 
         String auth = properties.getClientId() + ":" + properties.getClientSecret();
-        String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+        Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -231,12 +264,10 @@ public class PayPalPaymentService {
         LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
 
-        HttpEntity<LinkedMultiValueMap<String, String>> entity = new HttpEntity<>(form, headers);
-
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 properties.baseUrl() + "/v1/oauth2/token",
                 HttpMethod.POST,
-                entity,
+                new HttpEntity<>(form, headers),
                 JsonNode.class
         );
 

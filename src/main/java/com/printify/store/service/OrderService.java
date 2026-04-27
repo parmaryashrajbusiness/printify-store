@@ -25,7 +25,10 @@ public class OrderService {
     private final ShippingValidationService shippingValidationService;
 
     public List<Order> getOrders(User user) {
-        return orderRepository.findAllByUserIdOrderByCreatedAtDesc(user.getId());
+        return orderRepository.findAllByUserIdAndCustomerHiddenNotOrderByCreatedAtDesc(
+                user.getId(),
+                true
+        );
     }
 
     public Order checkout(User user, CheckoutRequest request) {
@@ -280,4 +283,89 @@ public class OrderService {
 
         return order;
     }
+
+    public OrderTrackingResponse cancelCustomerOrder(User user, String orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        syncPrintifyStatus(order);
+
+        if (!canCustomerCancel(order)) {
+            throw new BadRequestException(
+                    "This order can no longer be cancelled because it has already moved forward in production."
+            );
+        }
+
+        PrintifyOrderSnapshot snapshot = printifyService.cancelOrder(order.getPrintifyOrderId());
+
+        applyPrintifySnapshot(order, snapshot);
+        order.setStatus("CANCELLED");
+        order.setPrintifyStatus("canceled");
+        order.setCancelledByCustomerAt(LocalDateTime.now());
+        order.setCancellationReason("Cancelled by customer before production confirmation");
+
+        order = orderRepository.save(order);
+
+        return toTrackingResponse(order);
+    }
+
+    public void hideCustomerOrder(User user, String orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        syncPrintifyStatus(order);
+
+        if (!canCustomerHide(order)) {
+            throw new BadRequestException(
+                    "Only cancelled or delivered orders can be removed from your tracking page."
+            );
+        }
+
+        order.setCustomerHidden(true);
+        order.setCustomerHiddenAt(LocalDateTime.now());
+
+        orderRepository.save(order);
+    }
+
+    private void syncPrintifyStatus(Order order) {
+        if (order.getPrintifyOrderId() == null || order.getPrintifyOrderId().isBlank()) {
+            return;
+        }
+
+        try {
+            PrintifyOrderSnapshot snapshot = printifyService.getOrder(order.getPrintifyOrderId());
+            applyPrintifySnapshot(order, snapshot);
+            order.setStatus(toLocalStatus(snapshot.getStatus()));
+            orderRepository.save(order);
+        } catch (Exception ignored) {
+            // Keep last saved status if Printify is temporarily unavailable.
+        }
+    }
+
+    private boolean canCustomerCancel(Order order) {
+        if (order.getPrintifyOrderId() == null || order.getPrintifyOrderId().isBlank()) {
+            return false;
+        }
+
+        String status = safeStatus(order.getPrintifyStatus());
+
+        return status.equals("on-hold")
+                || status.equals("payment-not-received");
+    }
+
+    private boolean canCustomerHide(Order order) {
+        String printifyStatus = safeStatus(order.getPrintifyStatus());
+        String localStatus = safeStatus(order.getStatus());
+
+        return printifyStatus.equals("canceled")
+                || printifyStatus.equals("cancelled")
+                || printifyStatus.equals("delivered")
+                || localStatus.equals("cancelled")
+                || localStatus.equals("delivered");
+    }
+
+    private String safeStatus(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
 }

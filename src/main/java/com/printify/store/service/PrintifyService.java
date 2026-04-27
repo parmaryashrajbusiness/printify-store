@@ -170,4 +170,33 @@ public class PrintifyService {
     private String safe(String value) {
         return value == null ? "" : value.trim();
     }
+
+    public PrintifyOrderSnapshot cancelOrder(String printifyOrderId) {
+        String response = webClient.post()
+                .uri(baseUrl + "/shops/" + shopId + "/orders/" + printifyOrderId + "/cancel.json")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .header(HttpHeaders.USER_AGENT, "NeonCart")
+                .contentType(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        try {
+            JsonNode json = objectMapper.readTree(response);
+
+            return PrintifyOrderSnapshot.builder()
+                    .printifyOrderId(json.path("id").asText())
+                    .appOrderId(json.path("app_order_id").asText(null))
+                    .shopId(shopId)
+                    .status(json.path("status").asText("canceled"))
+                    .connectUrl(null)
+                    .trackingUrl(null)
+                    .trackingNumber(null)
+                    .trackingCarrier(null)
+                    .shipments(List.of())
+                    .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Printify cancel response: " + response);
+        }
+    }
 }

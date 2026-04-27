@@ -12,4 +12,10 @@ public interface OrderRepository extends MongoRepository<Order, String> {
     Optional<Order> findByIdAndUserId(String id, String userId);
 
     Optional<Order> findByPrintifyOrderId(String printifyOrderId);
+
+    List<Order> findAllByUserIdAndCustomerHiddenNotOrderByCreatedAtDesc(
+            String userId,
+            Boolean customerHidden
+    );
+
 }

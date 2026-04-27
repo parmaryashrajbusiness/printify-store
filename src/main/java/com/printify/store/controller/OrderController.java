@@ -41,4 +41,23 @@ public class OrderController {
         User user = currentUserService.getCurrentUser(authentication);
         return orderService.checkout(user, request);
     }
+
+    @PostMapping("/{orderId}/cancel")
+    public OrderTrackingResponse cancelOrder(
+            Authentication authentication,
+            @PathVariable String orderId
+    ) {
+        User user = currentUserService.getCurrentUser(authentication);
+        return orderService.cancelCustomerOrder(user, orderId);
+    }
+
+    @DeleteMapping("/{orderId}")
+    public void hideOrder(
+            Authentication authentication,
+            @PathVariable String orderId
+    ) {
+        User user = currentUserService.getCurrentUser(authentication);
+        orderService.hideCustomerOrder(user, orderId);
+    }
+
 }
