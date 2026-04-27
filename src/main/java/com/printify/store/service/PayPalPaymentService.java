@@ -52,6 +52,10 @@ public class PayPalPaymentService {
             throw new BadRequestException("Cart is empty.");
         }
 
+        if ("IN".equalsIgnoreCase(request.getCountry())) {
+            throw new BadRequestException("PayPal is not available for Indian checkout. Please use Razorpay.");
+        }
+
         BigDecimal totalAmount = cartItems.stream()
                 .map(item -> item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -123,6 +127,10 @@ public class PayPalPaymentService {
     public Object capturePayPalOrder(String userId, String paypalOrderId, CheckoutRequest checkoutRequest) {
         if (paypalOrderId == null || paypalOrderId.isBlank()) {
             throw new BadRequestException("PayPal order id is required.");
+        }
+
+        if ("IN".equalsIgnoreCase(checkoutRequest.getCountry())) {
+            throw new BadRequestException("PayPal is not available for Indian checkout. Please use Razorpay.");
         }
 
         User user = userRepository.findByEmail(userId)
